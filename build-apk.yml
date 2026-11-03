@@ -1,0 +1,47 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      site_url:
+        description: "Saytingiz manzili (masalan https://mening-saytim.vercel.app/)"
+        required: false
+        default: ""
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sayt manzilini almashtirish (agar kiritilgan bo'lsa)
+        if: ${{ inputs.site_url != '' }}
+        working-directory: android-wrapper
+        run: |
+          URL="${{ inputs.site_url }}"
+          URL="${URL%/}/"
+          HOST=$(echo "$URL" | sed -E 's#https://([^/:]+).*#\1#')
+          F=app/src/main/java/uz/learnify/education/MainActivity.java
+          sed -i "s#private static final String HOME = \".*\";#private static final String HOME = \"$URL\";#" $F
+          sed -i "s#private static final String HOST = \".*\";#private static final String HOST = \"$HOST\";#" $F
+          grep -n "String HOME\|String HOST" $F
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.11.1
+
+      - name: Build debug APK
+        working-directory: android-wrapper
+        run: gradle assembleDebug --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: learnify-apk
+          path: android-wrapper/app/build/outputs/apk/debug/app-debug.apk
